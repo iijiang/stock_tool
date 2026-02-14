@@ -1,0 +1,59 @@
+# Example: Custom Configuration
+# 
+# To customize settings, edit src/config.py directly
+# This file shows what you can configure
+
+[Data Settings]
+start_date: "2010-01-01"          # Historical data start date
+benchmark_symbol: "SPY"            # Benchmark for relative strength
+
+[Lookback Windows (Trading Days)]
+momentum_6m_days: 126              # ~6 months
+momentum_12m_days: 252             # ~12 months (1 year)
+ma_short: 50                       # Short-term moving average
+ma_long: 200                       # Long-term moving average
+
+[Ranking Weights (must sum to 1.0)]
+weight_6m_momentum: 0.40           # 40% - 6-month momentum
+weight_12m_momentum: 0.30          # 30% - 12-month momentum
+weight_above_ma200: 0.20           # 20% - Above MA200 indicator
+weight_volatility: 0.10            # 10% - Volatility (inverted)
+
+[Top N Settings]
+top_overall: 20                    # Top stocks by composite score
+top_momentum: 10                   # Top momentum leaders
+top_trend: 10                      # Top trend-filtered stocks
+
+[Paths]
+# These are auto-created, no need to change
+cache_dir: cache/
+output_dir: output/
+stock_pool_dir: stock_pool/
+
+[Cache]
+cache_db: "stock_data.db"          # SQLite database name
+
+[Logging]
+log_level: "INFO"                  # DEBUG, INFO, WARNING, ERROR
+
+# ============================================================
+# Example Custom Configurations
+# ============================================================
+
+# Conservative (Lower Risk)
+# weight_6m_momentum: 0.25
+# weight_12m_momentum: 0.25
+# weight_above_ma200: 0.25
+# weight_volatility: 0.25
+
+# Aggressive Momentum
+# weight_6m_momentum: 0.50
+# weight_12m_momentum: 0.40
+# weight_above_ma200: 0.10
+# weight_volatility: 0.00
+
+# Trend-Focused
+# weight_6m_momentum: 0.30
+# weight_12m_momentum: 0.20
+# weight_above_ma200: 0.40
+# weight_volatility: 0.10
