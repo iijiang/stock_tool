@@ -88,13 +88,14 @@ class Reporter:
         print(f"Median Score: {stats.get('median_score', 0):.3f}")
         print()
     
-    def save_ranking_csv(self, df: pd.DataFrame, date: Optional[datetime] = None) -> Path:
+    def save_ranking_csv(self, df: pd.DataFrame, date: Optional[datetime] = None, universe_name: str = None) -> Path:
         """
         Save full ranking to CSV.
         
         Args:
             df: Ranked DataFrame
             date: Date for filename (default: today)
+            universe_name: Universe name for filename prefix (optional)
             
         Returns:
             Path to saved file
@@ -102,7 +103,9 @@ class Reporter:
         if date is None:
             date = datetime.now()
         
-        filename = f"ranking_{date.strftime('%Y-%m-%d')}.csv"
+        # Add universe prefix if provided
+        prefix = f"{universe_name}_" if universe_name else ""
+        filename = f"{prefix}ranking_{date.strftime('%Y-%m-%d')}.csv"
         filepath = self.output_dir / filename
         
         # Select and order columns
@@ -129,13 +132,14 @@ class Reporter:
         
         return filepath
     
-    def save_portfolio_csv(self, df: pd.DataFrame, date: Optional[datetime] = None) -> Path:
+    def save_portfolio_csv(self, df: pd.DataFrame, date: Optional[datetime] = None, universe_name: str = None) -> Path:
         """
         Save portfolio snapshot to CSV.
         
         Args:
             df: Portfolio DataFrame
             date: Date for filename (default: today)
+            universe_name: Universe name for filename prefix (optional)
             
         Returns:
             Path to saved file
@@ -143,7 +147,9 @@ class Reporter:
         if date is None:
             date = datetime.now()
         
-        filename = f"top10_portfolio_{date.strftime('%Y-%m-%d')}.csv"
+        # Add universe prefix if provided
+        prefix = f"{universe_name}_" if universe_name else ""
+        filename = f"{prefix}top10_portfolio_{date.strftime('%Y-%m-%d')}.csv"
         filepath = self.output_dir / filename
         
         # Save as-is
@@ -164,12 +170,12 @@ class Reporter:
         
         return filepath
     
-    def print_report_header(self, universe_file: str, n_symbols: int, date: Optional[datetime] = None):
+    def print_report_header(self, universe_name: str, n_symbols: int, date: Optional[datetime] = None):
         """
         Print report header.
         
         Args:
-            universe_file: Stock universe filename
+            universe_name: Stock universe name (e.g., 'S&P 500', 'Mid-Cap')
             n_symbols: Number of symbols analyzed
             date: Report date
         """
@@ -180,7 +186,7 @@ class Reporter:
         print("STOCK SCREENING REPORT")
         print("=" * 80)
         print(f"Generated: {date.strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"Universe: {universe_file}")
+        print(f"Universe: {universe_name}")
         print(f"Symbols Analyzed: {n_symbols}")
         print("=" * 80)
     

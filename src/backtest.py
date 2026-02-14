@@ -360,7 +360,8 @@ class BacktestRunner:
             benchmark_data: pd.DataFrame,
             top_n: int = 10,
             regime_filter: bool = True,
-            tx_cost_bps: float = 0.0) -> Dict:
+            tx_cost_bps: float = 0.0,
+            universe_name: str = None) -> Dict:
         """
         Run complete backtest and generate outputs.
         
@@ -370,6 +371,7 @@ class BacktestRunner:
             top_n: Portfolio size
             regime_filter: Enable regime filter
             tx_cost_bps: Transaction cost in basis points
+            universe_name: Universe name for output files (optional)
             
         Returns:
             Dict with results and file paths
@@ -414,22 +416,30 @@ class BacktestRunner:
             self.logger.error("Backtest produced no results")
             return {}
         
+        # Add universe info to summary
+        if universe_name:
+            summary['universe'] = universe_name
+            summary['n_universe'] = len(universe_prices)
+        
         # Generate outputs
         timestamp = datetime.now().strftime('%Y-%m-%d')
         
+        # Add universe prefix to filenames
+        prefix = f"{universe_name}_" if universe_name else ""
+        
         # 1. Monthly returns CSV
-        returns_file = self.backtest_dir / f'backtest_monthly_returns_{timestamp}.csv'
+        returns_file = self.backtest_dir / f'{prefix}backtest_monthly_returns_{timestamp}.csv'
         results_df.to_csv(returns_file)
         self.logger.info(f"Saved monthly returns: {returns_file}")
         
         # 2. Summary JSON
-        summary_file = self.backtest_dir / f'backtest_summary_{timestamp}.json'
+        summary_file = self.backtest_dir / f'{prefix}backtest_summary_{timestamp}.json'
         with open(summary_file, 'w') as f:
             json.dump(summary, f, indent=2)
         self.logger.info(f"Saved summary: {summary_file}")
         
         # 3. Equity curve chart
-        chart_file = self.backtest_dir / f'equity_curve_{timestamp}.png'
+        chart_file = self.backtest_dir / f'{prefix}equity_curve_{timestamp}.png'
         try:
             plot_equity_curve(results_df, chart_file)
             self.logger.info(f"Saved chart: {chart_file}")

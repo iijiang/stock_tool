@@ -5,9 +5,10 @@ A production-quality, modular Python CLI tool for screening and observing US sto
 ## Features
 
 - **Multi-factor Stock Ranking**: Composite scoring system with momentum, trend, and volatility factors
+- **Multiple Universes**: S&P 500, Mid-Cap, or Combined universe support
 - **Intelligent Caching**: SQLite-based incremental updates (fetch only missing data)
 - **Technical Indicators**: 6M/12M momentum, MA50/200, volatility, max drawdown, relative strength
-- **Flexible Universe**: Start with S&P 500, easily extend to mid-cap stocks
+- **Monthly Rotation Backtest**: Historical simulation with regime filtering
 - **Multiple Rankings**: Overall top 20, momentum leaders, trend-filtered stocks
 - **Portfolio Snapshots**: Equal-weight portfolio generation
 - **Data Source**: Uses yfinance for reliable market data
@@ -49,40 +50,113 @@ pip install -r requirements.txt
 
 ### Basic Usage
 
-Run with the default S&P 500 demo universe (30 stocks):
+**Screening Mode (default):**
 
 ```bash
-python -m src.main --universe stock_pool/sp500.csv
+# Screen S&P 500 stocks
+python -m src.main --universe sp500
+
+# Screen Mid-Cap stocks
+python -m src.main --universe midcap
+
+# Screen Combined universe (S&P 500 + Mid-Cap)
+python -m src.main --universe combined
+```
+
+**Backtest Mode:**
+
+```bash
+# Backtest on S&P 500
+python -m src.main --mode backtest --universe sp500 --top 10 --start-date 2022-01-01
+
+# Backtest on Mid-Cap
+python -m src.main --mode backtest --universe midcap --top 5 --start-date 2020-01-01
+
+# Backtest on Combined universe
+python -m src.main --mode backtest --universe combined --top 15 --start-date 2018-01-01
 ```
 
 This will:
-1. Download historical data from 2010-01-01 (or update cache)
+1. Download historical data from specified start date (or update cache)
 2. Calculate technical indicators
 3. Rank all stocks by composite score
-4. Display three tables: Top 20 Overall, Top 10 Momentum, Top 10 Trend-Filtered
+4. Display results and performance metrics
 5. Save results to `output/` directory
 
 ### Common Commands
 
+**Screening Mode:**
+
 ```bash
-# Get top 30 stocks
-python -m src.main --universe stock_pool/sp500.csv --top 30
+# Get top 30 stocks from S&P 500
+python -m src.main --universe sp500 --top 30
+
+# Screen Mid-Cap with custom start date
+python -m src.main --universe midcap --start-date 2015-01-01
 
 # Force refresh all data (bypass cache)
-python -m src.main --universe stock_pool/sp500.csv --refresh
-
-# Custom start date
-python -m src.main --universe stock_pool/sp500.csv --start-date 2015-01-01
+python -m src.main --universe sp500 --refresh
 
 # Use different benchmark
-python -m src.main --universe stock_pool/sp500.csv --benchmark QQQ
+python -m src.main --universe sp500 --benchmark QQQ
+```
+
+**Backtest Mode:**
+
+```bash
+# Basic backtest
+python -m src.main --mode backtest --universe sp500 --top 10 --start-date 2022-01-01
+
+# With transaction costs (5 bps)
+python -m src.main --mode backtest --universe midcap --top 5 --tx-cost-bps 5
+
+# Longer timeframe on combined universe
+python -m src.main --mode backtest --universe combined --top 20 --start-date 2010-01-01
 
 # Disable progress bar
-python -m src.main --universe stock_pool/sp500.csv --no-progress
+python -m src.main --mode backtest --universe sp500 --top 10 --no-progress
+```
+# Disable progress bar
+python -m src.main --mode backtest --universe sp500 --top 10 --no-progress
 
 # Debug mode
-python -m src.main --universe stock_pool/sp500.csv --log-level DEBUG
+python -m src.main --universe sp500 --log-level DEBUG
 ```
+
+## Stock Universes
+
+The tool supports three stock universes:
+
+### 1. S&P 500 (`--universe sp500`)
+- Sample of S&P 500 stocks
+- Large-cap, established companies
+- Good for stable, diversified backtests
+- File: `stock_pool/sp500.csv` (30 stocks)
+
+### 2. Mid-Cap (`--universe midcap`)
+- High-growth mid-cap stocks
+- More volatile, higher growth potential
+- Includes: CROX, NET, DKNG, ROKU, ETSY, DDOG, RBLX, etc.
+- File: `stock_pool/midcap.csv` (15 stocks)
+
+### 3. Combined (`--universe combined`)
+- Union of S&P 500 + Mid-Cap
+- Broader diversification
+- Automatically removes duplicates
+- Total: ~45 unique stocks
+
+**Adding Custom Universes:**
+
+To add your own universe, create a CSV file in `stock_pool/` with a `Symbol` column:
+
+```csv
+Symbol
+AAPL
+MSFT
+GOOGL
+```
+
+Then update `src/universe.py` to register it.
 
 ## Project Structure
 
@@ -91,21 +165,30 @@ stock_tool/
 ├── src/
 │   ├── __init__.py          # Package initialization
 │   ├── config.py            # Configuration management
+│   ├── universe.py          # Universe management (NEW)
 │   ├── cache.py             # SQLite caching layer
 │   ├── data_fetcher.py      # yfinance wrapper with caching
 │   ├── indicators.py        # Technical indicator calculations
 │   ├── ranking.py           # Multi-factor ranking system
 │   ├── reporting.py         # Console/CSV output
+│   ├── backtest.py          # Monthly rotation backtest engine
+│   ├── visualization.py     # Chart generation
 │   ├── main.py              # CLI entry point
 │   └── utils.py             # Helper functions
 ├── stock_pool/
-│   └── sp500.csv            # Stock universe (Symbol column)
+│   ├── sp500.csv            # S&P 500 stocks (30 sample)
+│   └── midcap.csv           # Mid-cap stocks (15 stocks)
 ├── output/                  # Generated reports (auto-created)
-│   ├── ranking_YYYY-MM-DD.csv
-│   └── top10_portfolio_YYYY-MM-DD.csv
+│   ├── {universe}_ranking_YYYY-MM-DD.csv
+│   ├── {universe}_top10_portfolio_YYYY-MM-DD.csv
+│   └── backtest/
+│       ├── {universe}_backtest_summary_YYYY-MM-DD.json
+│       ├── {universe}_backtest_monthly_returns_YYYY-MM-DD.csv
+│       └── {universe}_equity_curve_YYYY-MM-DD.png
 ├── cache/                   # SQLite cache (auto-created)
 │   └── stock_data.db
 ├── requirements.txt         # Python dependencies
+├── BACKTEST.md             # Backtest documentation
 └── README.md               # This file
 ```
 

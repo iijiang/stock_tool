@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 from typing import Dict
 
-from .config import config
+from .config import config, Config
 from .utils import setup_logging, load_stock_universe
 from .cache import StockCache
 from .data_fetcher import DataFetcher
@@ -17,6 +17,7 @@ from .ranking import StockRanker
 from .reporting import Reporter
 from .backtest import BacktestRunner
 from .visualization import BacktestVisualizer
+from .universe import load_universe, get_universe_display_name, validate_universe_size
 
 
 def parse_args():
@@ -27,12 +28,12 @@ def parse_args():
         epilog="""
 Examples:
   # Screening mode (default)
-  python -m src.main --mode screen --universe stock_pool/sp500.csv
-  python -m src.main --universe stock_pool/sp500.csv --top 30
+  python -m src.main --mode screen --universe sp500
+  python -m src.main --universe midcap --top 30
 
   # Backtest mode
-  python -m src.main --mode backtest --universe stock_pool/sp500.csv --top 10
-  python -m src.main --mode backtest --universe stock_pool/sp500.csv --start-date 2010-01-01 --tx-cost-bps 10
+  python -m src.main --mode backtest --universe sp500 --top 10
+  python -m src.main --mode backtest --universe combined --start-date 2010-01-01 --tx-cost-bps 10
         """
     )
     
@@ -47,8 +48,9 @@ Examples:
     parser.add_argument(
         '--universe',
         type=str,
-        default='stock_pool/sp500.csv',
-        help='Path to stock universe CSV file (default: stock_pool/sp500.csv)'
+        default='sp500',
+        choices=['sp500', 'midcap', 'combined'],
+        help='Stock universe: sp500, midcap, or combined (default: sp500)'
     )
     
     parser.add_argument(
@@ -122,23 +124,27 @@ def main():
 def run_backtest(args, logger):
     """Run backtest mode."""
     try:
-        # Resolve universe file path
-        universe_path = Path(args.universe)
-        if not universe_path.is_absolute():
-            universe_path = config.project_root / universe_path
+        # Load stock universe by name
+        universe_name = args.universe
+        universe_display = get_universe_display_name(universe_name)
         
-        if not universe_path.exists():
-            logger.error(f"Universe file not found: {universe_path}")
-            print(f"Error: Universe file not found: {universe_path}")
+        logger.info(f"Loading {universe_display} universe")
+        try:
+            symbols = load_universe(universe_name, base_path=config.project_root)
+        except (ValueError, FileNotFoundError) as e:
+            logger.error(f"Failed to load universe: {e}")
+            print(f"Error: {e}")
             sys.exit(1)
-        
-        # Load stock universe
-        logger.info(f"Loading stock universe from {universe_path}")
-        symbols = load_stock_universe(universe_path)
         
         if not symbols:
-            logger.error("No symbols loaded from universe file")
+            logger.error("No symbols loaded from universe")
             sys.exit(1)
+        
+        logger.info(f"Loaded {len(symbols)} tickers from {universe_display}")
+        
+        # Validate portfolio size
+        original_top_n = args.top
+        args.top = validate_universe_size(symbols, args.top, universe_display)
         
         # Initialize components
         cache = StockCache(config.cache_db_path)
@@ -162,8 +168,11 @@ def run_backtest(args, logger):
         print("\n" + "=" * 80)
         print("MONTHLY ROTATION BACKTEST")
         print("=" * 80)
-        print(f"Universe: {len(symbols)} stocks from {universe_path.name}")
+        print(f"Universe: {universe_display}")
+        print(f"Tickers Loaded: {len(symbols)}")
         print(f"Portfolio Size: Top {args.top} (equal-weight)")
+        if original_top_n != args.top:
+            print(f"  (Adjusted from {original_top_n} due to universe size)")
         print(f"Start Date: {args.start_date}")
         print(f"Regime Filter: ENABLED (SPY < MA200 → Cash)")
         print(f"Transaction Cost: {args.tx_cost_bps} bps")
@@ -212,7 +221,8 @@ def run_backtest(args, logger):
             benchmark_data=benchmark_df,
             top_n=args.top,
             regime_filter=True,  # Always enabled
-            tx_cost_bps=args.tx_cost_bps
+            tx_cost_bps=args.tx_cost_bps,
+            universe_name=universe_name
         )
         
         if not results:
@@ -223,6 +233,12 @@ def run_backtest(args, logger):
         # Print results
         summary = results['summary']
         print_backtest_summary(summary)
+        
+        # Print validation stats
+        valid_stocks = len(stock_data)
+        print(f"\nTickers Valid for Backtest: {valid_stocks}/{len(symbols)}")
+        if valid_stocks < len(symbols):
+            print(f"  ({len(symbols) - valid_stocks} tickers excluded due to insufficient data)")
         
         # Print files saved
         print("\n" + "=" * 80)
@@ -291,23 +307,23 @@ def run_screening(args, logger):
         # Initialize config
         config = Config()
         
-        # Resolve universe file path
-        universe_path = Path(args.universe)
-        if not universe_path.is_absolute():
-            universe_path = Path.cwd() / universe_path
+        # Load stock universe by name
+        universe_name = args.universe
+        universe_display = get_universe_display_name(universe_name)
         
-        if not universe_path.exists():
-            logger.error(f"Universe file not found: {universe_path}")
-            print(f"Error: Universe file not found: {universe_path}")
+        logger.info(f"Loading {universe_display} universe")
+        try:
+            symbols = load_universe(universe_name, base_path=Path.cwd())
+        except (ValueError, FileNotFoundError) as e:
+            logger.error(f"Failed to load universe: {e}")
+            print(f"Error: {e}")
             sys.exit(1)
-        
-        # Load stock universe
-        logger.info(f"Loading stock universe from {universe_path}")
-        symbols = load_stock_universe(universe_path)
         
         if not symbols:
-            logger.error("No symbols loaded from universe file")
+            logger.error("No symbols loaded from universe")
             sys.exit(1)
+        
+        logger.info(f"Loaded {len(symbols)} tickers from {universe_display}")
         
         # Initialize components
         cache = StockCache(config.cache_db_path)
@@ -328,7 +344,7 @@ def run_screening(args, logger):
         
         # Print report header
         reporter.print_report_header(
-            universe_file=universe_path.name,
+            universe_name=universe_display,
             n_symbols=len(symbols)
         )
         
@@ -420,8 +436,8 @@ def run_screening(args, logger):
         reporter.print_summary_stats(stats)
         
         # Save to files
-        ranking_file = reporter.save_ranking_csv(ranked_df)
-        portfolio_file = reporter.save_portfolio_csv(portfolio)
+        ranking_file = reporter.save_ranking_csv(ranked_df, universe_name=universe_name)
+        portfolio_file = reporter.save_portfolio_csv(portfolio, universe_name=universe_name)
         
         reporter.print_files_saved(ranking_file, portfolio_file)
         
