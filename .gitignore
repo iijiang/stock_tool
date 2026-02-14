@@ -13,7 +13,9 @@ ENV/
 
 # Cache and output
 cache/
-output/
+output/*
+!output/dashboard.html
+output_archive/
 *.db
 
 # IDE
